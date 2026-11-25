@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bodové grupy molekul</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: klidný laboratorní výklad, přesný a hravý v ovládání
+   IDEA: stavebnice molekulových modelů na tmavé podložce, prvky symetrie jako barevné tyčky a skla
+   PICTURE: velká 3D scéna s molekulou, osami a rovinami, operace se přehrávají jako pohyb atomů
+   COLOUR and TYPE: CPK barvy atomů, osy C oranžové, S zelené, roviny modré sklo, střed i purpurový; Instrument Sans + Inter
+   LAYOUT: vlevo grupy, uprostřed scéna, vpravo panel operací; pod tím výklad teorie */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0f1114);--ink:light-dark(#15171c,#e9ebef);--mute:light-dark(#5b616b,#9aa1ad);--line:light-dark(#e4e6ea,#262a31);--card:light-dark(#f5f6f8,#171a1f);--stage:#14171c;--cC:#ff8a1f;--cS:#2fd38a;--cs:#5ab0ff;--ci:#e65bd6;--acc:light-dark(#0b6bcb,#6cb6ff)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:"Instrument Sans",Inter,sans-serif;line-height:1.08;margin:0;text-wrap:balance}
+h1{font-size:clamp(28px,3.4vw,40px);font-weight:700}
+h2{font-size:clamp(24px,2.6vw,32px);font-weight:700}
+h3{font-size:19px;font-weight:600}
+sub,sup{font-size:.7em;line-height:0}
+.band{padding:clamp(20px,3vw,40px) max(4vw,16px)}
+.top{padding-bottom:16px;max-width:1440px;margin:0 auto}
+.top p{color:var(--mute);margin:8px 0 0;max-width:70ch}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr) 340px;gap:16px;max-width:1440px;margin:0 auto;padding:0 max(4vw,16px)}
+.groups{display:flex;flex-direction:column;gap:12px}
+.fam h3{font-size:13px;color:var(--mute);font-weight:600;margin:0 0 6px;font-family:Inter,sans-serif}
+.fam div{display:flex;flex-wrap:wrap;gap:6px}
+.gbtn{font:600 16px "Instrument Sans",sans-serif;min-height:40px;min-width:52px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.gbtn:hover{border-color:var(--acc)}
+.gbtn[aria-current=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.stagewrap{display:flex;flex-direction:column;gap:10px}
+.stage{position:relative;height:clamp(420px,68vh,760px);background:radial-gradient(120% 90% at 50% 35%,#232832,var(--stage));border-radius:16px;overflow:hidden;touch-action:none;cursor:grab}
+.stage:active{cursor:grabbing}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lb{position:absolute;left:0;top:0;font:600 14px "Instrument Sans",sans-serif;color:#fff;padding:1px 6px;border-radius:6px;white-space:nowrap;background:rgba(20,23,28,.72);transition:opacity .2s}
+.lb.C{color:var(--cC)}.lb.S{color:var(--cS)}.lb.s{color:#9fd0ff}.lb.i{color:#f39ae8}
+.lb.num{font:500 12px Inter,sans-serif;background:rgba(255,255,255,.88);color:#111;padding:0 4px}
+.hud{position:absolute;left:12px;bottom:10px;color:#aab2bf;font-size:13px;pointer-events:none}
+.zoom{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.zoom button{width:44px;height:44px;border-radius:10px;border:1px solid #3a404b;background:rgba(30,34,41,.85);color:#e9ebef;font-size:20px;cursor:pointer}
+.caption{position:absolute;left:12px;right:12px;top:10px;color:#e9ebef;font-size:15px;pointer-events:none;text-shadow:0 1px 3px #000}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tbtn{font:500 14px Inter,sans-serif;min-height:40px;padding:6px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.tbtn:hover{border-color:var(--acc)}
+.tog{display:inline-flex;align-items:center;gap:6px;font-size:14px;min-height:40px;padding:0 6px;cursor:pointer}
+.tog input{width:18px;height:18px;accent-color:var(--acc)}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.panel{display:flex;flex-direction:column;gap:14px}
+.gsym{font:700 clamp(40px,4vw,52px)/1 "Instrument Sans",sans-serif}
+.mol{font-weight:600;margin-top:6px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.badge{font-size:13px;padding:2px 10px;border-radius:99px;border:1px solid var(--line);white-space:nowrap}
+.badge.ch{border-color:#e0a100;color:light-dark(#8a5d00,#ffcf5a)}
+.panel p{margin:0}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.box h3{font-size:14px;color:var(--mute);font-family:Inter,sans-serif;font-weight:600;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 16px "Instrument Sans",sans-serif;min-height:40px;min-width:44px;padding:4px 10px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.chip small{font:500 11px Inter,sans-serif;color:var(--mute);margin-left:3px}
+.chip.C{border-color:var(--cC)}.chip.S{border-color:var(--cS)}.chip.s{border-color:var(--cs)}.chip.i{border-color:var(--ci)}
+.chip:hover,.chip.on{background:var(--ink);color:var(--bg)}
+.status{min-height:3.2em;font-size:15px}
+.ok{color:light-dark(#0f7a43,#4be08f);font-weight:600}.no{color:light-dark(#b3261e,#ff7b72);font-weight:600}
+#decomp[hidden]{display:none}
+.tip{border-left:3px solid var(--acc);padding-left:12px;color:var(--ink)}
+.theory{max-width:1440px;margin:24px auto 0;border-top:1px solid var(--line)}
+.theory>p{max-width:72ch;color:var(--mute)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;margin-top:18px}
+.card{background:var(--card);border-radius:14px;padding:16px 18px}
+.card h3{display:flex;gap:10px;align-items:baseline}
+.card h3 span{font-size:26px}
+.card p{margin:8px 0 0}
+table{border-collapse:collapse;width:100%;margin-top:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:14px;color:var(--mute);font-weight:600}
+td:first-child{font:600 18px "Instrument Sans",sans-serif;white-space:nowrap}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:28px;margin-top:28px}
+ol li{margin-bottom:8px}
+.note{font-size:13px;color:var(--mute)}
+@media(max-width:1180px){.lab{grid-template-columns:minmax(0,1fr) 320px}.groups{grid-column:1/-1;flex-direction:row;overflow-x:auto;padding-bottom:6px}.fam{flex:none}.fam div{flex-wrap:nowrap}}
+@media(max-width:780px){.lab{grid-template-columns:minmax(0,1fr)}.stage{height:min(72vh,480px)}.hud{display:none}}
+@media(max-width:600px){table{font-size:14px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:8em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;white-space:normal;font:500 13px Inter,sans-serif;color:var(--mute)}.stack td:empty{display:none}}
+@media(prefers-reduced-motion:reduce){.lb{transition:none}}
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head><body>
+<header class="band top">
+  <h1>Bodové grupy symetrie molekul</h1>
+  <p>Vyber grupu, myší otáčej molekulou a klikáním na prvky symetrie přehrávej jednotlivé operace. Průhledný „duch“ ukazuje výchozí polohu: když s ním molekula po operaci splyne, operace patří do grupy.</p>
+</header>
+<main class="lab">
+  <nav id="groups" class="groups" aria-label="Bodové grupy"></nav>
+  <section class="stagewrap">
+    <div id="stage" class="stage">
+      <canvas id="cv" aria-label="3D model molekuly"></canvas>
+      <div id="labels"></div>
+      <div class="caption" id="caption"></div>
+      <div class="hud">Táhni = otáčení · kolečko = přiblížení</div>
+      <div class="zoom"><button id="zin" aria-label="Přiblížit">+</button><button id="zout" aria-label="Oddálit">−</button></div>
+    </div>
+    <div class="tools">
+      <button class="tbtn" data-view="def">Výchozí pohled</button>
+      <button class="tbtn" data-view="top">Podél hlavní osy</button>
+      <button class="tbtn" data-view="side">Z boku</button>
+      <button class="tbtn" id="reset">Vrátit atomy</button>
+      <label class="tog"><input type="checkbox" id="tC" checked><span class="dot" style="background:var(--cC)"></span><span>Osy C<sub>n</sub></span></label>
+      <label class="tog"><input type="checkbox" id="tS" checked><span class="dot" style="background:var(--cS)"></span><span>Osy S<sub>n</sub></span></label>
+      <label class="tog"><input type="checkbox" id="ts" checked><span class="dot" style="background:var(--cs)"></span>Roviny σ</label>
+      <label class="tog"><input type="checkbox" id="ti" checked><span class="dot" style="background:var(--ci)"></span>Střed i</label>
+      <label class="tog"><input type="checkbox" id="tg" checked>Duch</label>
+      <label class="tog"><input type="checkbox" id="tn">Čísla atomů</label>
+    </div>
+  </section>
+  <aside class="panel">
+    <div>
+      <div class="gsym" id="gsym"></div>
+      <div class="mol" id="gmol"></div>
+      <div class="badges" id="gbadges"></div>
+    </div>
+    <p id="gdesc"></p>
+    <div class="box"><h3>Operace grupy</h3><div id="gops" style="font-size:17px"></div></div>
+    <div class="box"><h3>Prvky symetrie: klikni a přehraj</h3><div class="chips" id="chips"></div></div>
+    <div class="box status" id="status" aria-live="polite">Najeď na čip a prvek se ve scéně zvýrazní. Kliknutím operaci provedeš, opakovaným klikáním ji skládáš.</div>
+    <div class="box" id="decomp" hidden><h3>Rozklad S<sub>n</sub> na dva kroky</h3>
+      <p style="font-size:15px;margin-bottom:10px">Proveď jen jeden krok a porovnej s duchem. Samotný krok obvykle operací symetrie není.</p>
+      <div class="chips"><button class="tbtn" id="dRot"></button><button class="tbtn" id="dRef">Jen zrcadlení σ ⊥ osa</button><button class="tbtn" id="dReset">Vrátit atomy</button></div>
+    </div>
+    <p class="tip" id="gtip"></p>
+  </aside>
+</main>
+
+<section class="band theory">
+  <h2>Co znamenají jednotlivé operace</h2>
+  <p>Je dobré rozlišovat <b>prvek symetrie</b> (geometrický objekt: osa, rovina, bod) a <b>operaci symetrie</b> (pohyb, který molekulu převede do nerozlišitelné polohy). Jedna osa C<sub>3</sub> dává dvě operace, C<sub>3</sub> a C<sub>3</sub><sup>2</sup>. Bodová grupa je množina všech operací. Říká se jí „bodová“, protože při všech operacích zůstává na místě aspoň jeden bod (těžiště).</p>
+  <div class="grid2">
+    <div class="card"><h3><span>E</span>Identita</h3><p>„Nedělej nic.“ Má ji každá molekula. V grupě je potřeba jako neutrální prvek: jakákoli operace a k ní inverzní operace dají dohromady E.</p></div>
+    <div class="card"><h3><span style="color:var(--cC)">C<sub>n</sub></span>Vlastní osa rotace</h3><p>Otočení o 360°/n. Osa s nejvyšším n je <b>hlavní osa</b> a obvykle se kreslí svisle (osa z). C<sub>n</sub><sup>k</sup> znamená otočit k-krát a C<sub>n</sub><sup>n</sup> = E.</p></div>
+    <div class="card"><h3><span style="color:var(--cs)">σ</span>Rovina symetrie</h3><p>Zrcadlení. <b>σ<sub>h</sub></b> („horizontální“) je kolmá na hlavní osu, <b>σ<sub>v</sub></b> („vertikální“) hlavní osu obsahuje a <b>σ<sub>d</sub></b> („diagonální“) ji také obsahuje a navíc půlí úhel mezi dvěma osami C<sub>2</sub>. σ<sup>2</sup> = E.</p></div>
+    <div class="card"><h3><span style="color:var(--ci)">i</span>Střed symetrie</h3><p>Inverze: každý atom projde středem na opačnou stranu, (x, y, z) → (−x, −y, −z). i<sup>2</sup> = E.</p></div>
+    <div class="card"><h3><span style="color:var(--cS)">S<sub>n</sub></span>Rotačně reflexní osa</h3><p>Otočení o 360°/n a hned potom zrcadlení v rovině kolmé na osu. Krok samotný operací symetrie být nemusí. S<sub>1</sub> = σ, S<sub>2</sub> = i.</p></div>
+    <div class="card"><h3><span>±</span>Vlastní a nevlastní</h3><p>E a C<sub>n</sub> jsou <b>vlastní</b> operace: dají se provést s fyzickým modelem v ruce. σ, i a S<sub>n</sub> jsou <b>nevlastní</b>, protože převádějí pravou ruku na levou. Molekula bez jakékoli nevlastní operace je <b>chirální</b>.</p></div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <h2>Rodiny bodových grup</h2>
+      <table class="stack"><thead><tr><th>Grupa</th><th>Obsahuje</th><th>Příklad</th></tr></thead><tbody>
+        <tr><td>C<sub>1</sub>, C<sub>s</sub>, C<sub>i</sub></td><td>nic, jen σ, nebo jen i</td><td>CHFClBr, HOCl</td></tr>
+        <tr><td>C<sub>n</sub></td><td>jen jednu osu C<sub>n</sub></td><td>H<sub>2</sub>O<sub>2</sub> (C<sub>2</sub>)</td></tr>
+        <tr><td>C<sub>nv</sub></td><td>C<sub>n</sub> + n svislých rovin σ<sub>v</sub></td><td>H<sub>2</sub>O, NH<sub>3</sub>, HCN</td></tr>
+        <tr><td>C<sub>nh</sub></td><td>C<sub>n</sub> + vodorovnou rovinu σ<sub>h</sub></td><td>trans-C<sub>2</sub>H<sub>2</sub>Cl<sub>2</sub>, B(OH)<sub>3</sub></td></tr>
+        <tr><td>D<sub>n</sub></td><td>C<sub>n</sub> + n os C<sub>2</sub> kolmých na hlavní osu</td><td>[Co(en)<sub>3</sub>]<sup>3+</sup></td></tr>
+        <tr><td>D<sub>nh</sub></td><td>D<sub>n</sub> + σ<sub>h</sub> (a s ní n rovin σ<sub>v</sub>)</td><td>BF<sub>3</sub>, benzen, CO<sub>2</sub></td></tr>
+        <tr><td>D<sub>nd</sub></td><td>D<sub>n</sub> + n rovin σ<sub>d</sub> mezi osami C<sub>2</sub> (a s nimi S<sub>2n</sub>)</td><td>allen, střídavý ethan</td></tr>
+        <tr><td>S<sub>2n</sub></td><td>jen osu S<sub>2n</sub> (a její mocniny)</td><td>tetrafluor-COT (S<sub>4</sub>)</td></tr>
+        <tr><td>T<sub>d</sub>, O<sub>h</sub>, I<sub>h</sub></td><td>víc os vyššího řádu než 2</td><td>CH<sub>4</sub>, SF<sub>6</sub>, C<sub>60</sub></td></tr>
+      </tbody></table>
+      <h3 style="margin-top:24px">Proč „diedrické“?</h3>
+      <p>Z řeckého <i>di-</i> (dva) a <i>hedra</i> (stěna, plocha). <b>Dihedron</b> je plochý pravidelný n-úhelník braný jako těleso se dvěma stěnami, horní a dolní. Kromě otočení kolem osy kolmé na jeho plochu (C<sub>n</sub>) ho můžeš otočit o 180° kolem os ležících v jeho rovině (C<sub>2</sub>). Tím ho překlopíš rubem nahoru a přitom zapadne na stejné místo. Grupa D<sub>n</sub> je přesně tahle sada otočení. Písmeno D tedy vždycky znamená: <b>hlavní osa C<sub>n</sub> + n kolmých os C<sub>2</sub></b>. Indexy h a d pak říkají, jaké roviny k tomu přibyly.</p>
+    </div>
+    <div>
+      <h2>Jak určit bodovou grupu</h2>
+      <ol>
+        <li><b>Je molekula lineární?</b> Má i → D<sub>∞h</sub>, nemá i → C<sub>∞v</sub>.</li>
+        <li><b>Má víc os vyššího řádu (C<sub>3</sub> a výš)?</b> Čtyřstěn → T<sub>d</sub>, osmistěn → O<sub>h</sub>, dvacetistěn → I<sub>h</sub>.</li>
+        <li><b>Najdi hlavní osu C<sub>n</sub></b> (s nejvyšším n). Když žádná není: má σ → C<sub>s</sub>, má i → C<sub>i</sub>, jinak C<sub>1</sub>.</li>
+        <li><b>Je n os C<sub>2</sub> kolmých na hlavní osu?</b> Ano → větev D: σ<sub>h</sub> → D<sub>nh</sub>, n rovin σ<sub>d</sub> → D<sub>nd</sub>, nic → D<sub>n</sub>.</li>
+        <li><b>Jinak větev C:</b> σ<sub>h</sub> → C<sub>nh</sub>, n rovin σ<sub>v</sub> → C<sub>nv</sub>, jen osa S<sub>2n</sub> → S<sub>2n</sub>, nic dalšího → C<sub>n</sub>.</li>
+      </ol>
+      <h3 style="margin-top:24px">Chiralita</h3>
+      <p>Molekula je chirální právě tehdy, když nemá žádnou osu S<sub>n</sub> (včetně σ = S<sub>1</sub> a i = S<sub>2</sub>). Chirální mohou být jen grupy C<sub>n</sub>, D<sub>n</sub>, T, O a I. V této stránce to jsou C<sub>1</sub>, C<sub>2</sub> a D<sub>3</sub>. Proteiny z L-aminokyselin a kapsidy virů mají vždy jen vlastní rotace.</p>
+      <p class="note" style="margin-top:14px">Geometrie molekul jsou přibližné (délky vazeb v Å, idealizované úhly). Tetrafluorcyklooktatetraen je zjednodušený model, který má přesnou symetrii S<sub>4</sub>.</p>
+    </div>
+  </div>
+</section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const PHI=(1+Math.sqrt(5))/2, DEG=Math.PI/180;
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const norm=a=>mul(a,1/Math.hypot(a[0],a[1],a[2]));
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+function rot(p,ax,ang){ax=norm(ax);const c=Math.cos(ang),s=Math.sin(ang),d=dot(ax,p),cr=cross(ax,p);return [0,1,2].map(i=>p[i]*c+cr[i]*s+ax[i]*d*(1-c));}
+function refl(p,n,t=1){n=norm(n);const d=dot(p,n);return [0,1,2].map(i=>p[i]-2*t*d*n[i]);}
+const angOf=el=>el.n===Infinity?Math.PI/3:2*Math.PI/el.n;
+function opPos(el,p,t){
+  switch(el.k){
+    case 'C':return rot(p,el.a,t*angOf(el));
+    case 's':return refl(p,el.n,t);
+    case 'i':return mul(p,1-2*t);
+    case 'S':{const A=angOf(el);if(t<=.5)return rot(p,el.a,2*t*A);return refl(rot(p,el.a,A),el.a,2*t-1);}
+    default:return p.slice();
+  }
+}
+const ax=th=>[Math.cos(th*DEG),Math.sin(th*DEG),0];
+const pn=th=>[-Math.sin(th*DEG),Math.cos(th*DEG),0];
+const C=(n,a,p)=>({k:'C',n,a,p}), S=(n,a)=>({k:'S',n,a}), P=(n,t)=>({k:'s',n,t}), I={k:'i'};
+const tet=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]].map(norm);
+
+function c60(){const pts=[];const base=[[0,1,3*PHI],[1,2+PHI,2*PHI],[PHI,2,2*PHI+1]];
+  for(const b of base)for(const sx of[1,-1])for(const sy of[1,-1])for(const sz of[1,-1]){const p=[b[0]*sx,b[1]*sy,b[2]*sz];
+    for(let k=0;k<3;k++){const q=[p[k%3],p[(k+1)%3],p[(k+2)%3]];if(!pts.some(r=>Math.hypot(r[0]-q[0],r[1]-q[1],r[2]-q[2])<1e-6))pts.push(q);}}
+  return pts.map(p=>['C',mul(p,0.7)]);}
+function tfcot(){const at=[];const R=1.78,h=0.42;
+  for(let k=0;k<8;k++){const th=k*45*DEG,up=(k%4<2)?1:-1,c=[R*Math.cos(th),R*Math.sin(th),h*up];at.push(['C',c]);
+    const d=norm([Math.cos(th),Math.sin(th),0.5*up]);at.push([k%2===0?'F':'H',add(c,mul(d,k%2===0?1.35:1.08))]);}
+  return at;}
+function ethane(off){const at=[['C',[0,0,0.77]],['C',[0,0,-0.77]]];
+  for(let k=0;k<3;k++){const a=k*120*DEG,b=(k*120+off)*DEG;at.push(['H',[1.02*Math.cos(a),1.02*Math.sin(a),1.13]]);at.push(['H',[1.02*Math.cos(b),1.02*Math.sin(b),-1.13]]);}
+  return at;}
+function meso(){const c1=[0,0,0.77],at=[['C',c1],['C',mul(c1,-1)]];const s=0.943,z=0.333;
+  [['F',0,1.35],['Cl',120,1.77],['H',240,1.09]].forEach(([e,f,r])=>{const p=add(c1,mul([s*Math.cos(f*DEG),s*Math.sin(f*DEG),z],r));at.push([e,p]);at.push([e,mul(p,-1)]);});
+  return at;}
+function ring(n,r,e,off=0,z=0){return Array.from({length:n},(_,k)=>[e,[r*Math.cos((k*360/n+off)*DEG),r*Math.sin((k*360/n+off)*DEG),z]]);}
+
+const GROUPS=[
+ {id:'c1',sym:'C<sub>1</sub>',fam:'low',mol:'Bromchlorfluormethan CHFClBr',h:1,ops:'E',chiral:true,
+  atoms:[['C',[0,0,0]],['H',mul(tet[0],1.09)],['F',mul(tet[1],1.35)],['Cl',mul(tet[2],1.77)],['Br',mul(tet[3],1.94)]],els:[],
+  desc:'Čtyři různé substituenty na uhlíku. Kromě identity E nemá molekula žádnou symetrii.',
+  tip:'Typické chirální centrum, stejně jako α-uhlík aminokyselin. Zrcadlový obraz s ní nesplyne.'},
+ {id:'cs',sym:'C<sub>s</sub>',fam:'low',mol:'Kyselina chlorná HOCl',h:2,ops:'E, σ<sub>h</sub>',chiral:false,
+  atoms:[['O',[0,0,0]],['H',[0.96,0,0]],['Cl',[1.69*Math.cos(103*DEG),1.69*Math.sin(103*DEG),0]]],els:[P([0,0,1],'')],
+  desc:'Jediný prvek symetrie je rovina. U planární molekuly je to sama rovina molekuly.',
+  tip:'Zrcadlení v rovině molekuly atomy vůbec nepohne, protože v té rovině leží.'},
+ {id:'ci',sym:'C<sub>i</sub>',fam:'low',mol:'meso-1,2-dichlor-1,2-difluorethan (anti)',h:2,ops:'E, i',chiral:false,
+  atoms:meso(),els:[I],
+  desc:'Jediný prvek symetrie je střed symetrie. Ke každému atomu najdeš stejný atom na opačné straně středu.',
+  tip:'Nemá rovinu ani osu, a přesto není chirální. Střed symetrie je S<sub>2</sub>.'},
+ {id:'c2',sym:'C<sub>2</sub>',fam:'cn',mol:'Peroxid vodíku H<sub>2</sub>O<sub>2</sub>',h:2,ops:'E, C<sub>2</sub>',chiral:true,
+  atoms:[['O',[-0.74,0,0]],['O',[0.74,0,0]],['H',add([-0.74,0,0],mul([-0.087,0.996*Math.cos(56*DEG),0.996*Math.sin(56*DEG)],0.97))],['H',add([0.74,0,0],mul([0.087,0.996*Math.cos(56*DEG),-0.996*Math.sin(56*DEG)],0.97))]],
+  els:[C(2,[0,1,0])],
+  desc:'Jen jedna vlastní osa C<sub>2</sub>. Molekula je „zkroucená“ (dihedrální úhel H–O–O–H je asi 112°).',
+  tip:'Bez roviny i středu je konformace chirální. Obě zrcadlové formy se ale za normální teploty rychle přeměňují jedna v druhou.'},
+ {id:'c2v',sym:'C<sub>2v</sub>',fam:'cnv',mol:'Voda H<sub>2</sub>O',h:4,ops:'E, C<sub>2</sub>, σ<sub>v</sub>, σ<sub>v</sub>′',chiral:false,
+  atoms:[['O',[0,0.12,0]],['H',[0.96*Math.sin(52.25*DEG),0.12-0.96*Math.cos(52.25*DEG),0]],['H',[-0.96*Math.sin(52.25*DEG),0.12-0.96*Math.cos(52.25*DEG),0]]],
+  els:[C(2,[0,1,0]),P([1,0,0],'v'),P([0,0,1],'v′')],
+  desc:'Osa C<sub>2</sub> a dvě „svislé“ roviny σ<sub>v</sub>, které ji obsahují. Jedna z nich je rovina molekuly.',
+  tip:'Nejběžnější grupa malých molekul: H<sub>2</sub>O, SO<sub>2</sub>, CH<sub>2</sub>Cl<sub>2</sub>, formaldehyd.'},
+ {id:'c3v',sym:'C<sub>3v</sub>',fam:'cnv',mol:'Amoniak NH<sub>3</sub>',h:6,ops:'E, 2C<sub>3</sub>, 3σ<sub>v</sub>',chiral:false,
+  atoms:[['N',[0,0,0.38]],...[0,120,240].map(t=>['H',[0.94*Math.cos(t*DEG),0.94*Math.sin(t*DEG),0]])],
+  els:[C(3,[0,0,1]),P(pn(0),'v'),P(pn(120),'v'),P(pn(240),'v')],
+  desc:'Trigonální pyramida: osa C<sub>3</sub> a tři roviny σ<sub>v</sub>, každá prochází jedním vodíkem.',
+  tip:'„2C<sub>3</sub>“ v seznamu operací znamená otočení o 120° a o 240° (C<sub>3</sub> a C<sub>3</sub><sup>2</sup>). Zkus kliknout na C<sub>3</sub> třikrát.'},
+ {id:'cinfv',sym:'C<sub>∞v</sub>',fam:'cnv',mol:'Kyanovodík HCN',h:'∞',ops:'E, 2C<sub>∞</sub><sup>φ</sup>, ∞σ<sub>v</sub>',chiral:false,
+  atoms:[['H',[0,0,-1.66]],['C',[0,0,-0.6]],['N',[0,0,0.55]]],els:[C(Infinity,[0,0,1]),P([1,0,0],'v')],
+  desc:'Lineární molekula bez středu symetrie. Otočení o libovolný úhel kolem osy molekuly je operace symetrie a každá rovina, která osu obsahuje, je σ<sub>v</sub>.',
+  tip:'Zobrazena je jen jedna z nekonečně mnoha rovin σ<sub>v</sub>. Animace otáčí o 60°, fungoval by ale jakýkoli úhel.'},
+ {id:'c2h',sym:'C<sub>2h</sub>',fam:'cnh',mol:'trans-1,2-dichlorethen',h:4,ops:'E, C<sub>2</sub>, i, σ<sub>h</sub>',chiral:false,
+  atoms:(()=>{const c=[0.67,0,0],cl=add(c,mul(ax(60),1.73)),hh=add(c,mul(ax(-60),1.08));return [['C',c],['C',mul(c,-1)],['Cl',cl],['Cl',mul(cl,-1)],['H',hh],['H',mul(hh,-1)]];})(),
+  els:[C(2,[0,0,1]),P([0,0,1],'h'),I],
+  desc:'Osa C<sub>2</sub> kolmá na rovinu molekuly a „vodorovná“ rovina σ<sub>h</sub> kolmá na tuto osu (je to rovina molekuly).',
+  tip:'C<sub>2</sub> a σ<sub>h</sub> provedené za sebou dají S<sub>2</sub> = i. Střed symetrie tu tedy vzniká automaticky.'},
+ {id:'d3',sym:'D<sub>3</sub>',fam:'dn',mol:'Ethan, pootočená konformace (25°)',h:6,ops:'E, 2C<sub>3</sub>, 3C<sub>2</sub>',chiral:true,
+  atoms:ethane(25),els:[C(3,[0,0,1]),C(2,ax(12.5)),C(2,ax(132.5)),C(2,ax(252.5))],
+  desc:'Diedrická grupa bez rovin: hlavní osa C<sub>3</sub> a tři osy C<sub>2</sub> kolmé na ni. Žádná nevlastní operace, takže je chirální.',
+  tip:'Konformace ethanu „mezi“ zákrytovou (D<sub>3h</sub>) a střídavou (D<sub>3d</sub>). Ze stejné grupy jsou tris-chelátové komplexy [Co(en)<sub>3</sub>]<sup>3+</sup> s enantiomery Δ a Λ.'},
+ {id:'d2h',sym:'D<sub>2h</sub>',fam:'dnh',mol:'Ethylen C<sub>2</sub>H<sub>4</sub>',h:8,ops:'E, C<sub>2</sub>(z), C<sub>2</sub>(y), C<sub>2</sub>(x), i, σ(xy), σ(xz), σ(yz)',chiral:false,
+  atoms:[['C',[0.67,0,0]],['C',[-0.67,0,0]],['H',[1.23,0.92,0]],['H',[1.23,-0.92,0]],['H',[-1.23,0.92,0]],['H',[-1.23,-0.92,0]]],
+  els:[C(2,[1,0,0],'(x)'),C(2,[0,1,0],'(y)'),C(2,[0,0,1],'(z)'),P([1,0,0],''),P([0,1,0],''),P([0,0,1],''),I],
+  desc:'Tři navzájem kolmé osy C<sub>2</sub>, tři roviny a střed symetrie. Žádná osa není „hlavní“.',
+  tip:'Osy C<sub>2</sub> ve všech třech směrech jsou rovnocenné, a proto je to diedrická grupa už od n = 2.'},
+ {id:'d3h',sym:'D<sub>3h</sub>',fam:'dnh',mol:'Fluorid boritý BF<sub>3</sub>',h:12,ops:'E, 2C<sub>3</sub>, 3C<sub>2</sub>, σ<sub>h</sub>, 2S<sub>3</sub>, 3σ<sub>v</sub>',chiral:false,
+  atoms:[['B',[0,0,0]],...ring(3,1.31,'F',90)],
+  els:[C(3,[0,0,1]),C(2,ax(90)),C(2,ax(210)),C(2,ax(330)),P([0,0,1],'h'),P(pn(90),'v'),P(pn(210),'v'),P(pn(330),'v'),S(3,[0,0,1])],
+  desc:'Planární trojúhelník: C<sub>3</sub>, tři kolmé osy C<sub>2</sub> (každá podél vazby B–F), σ<sub>h</sub> v rovině molekuly a tři σ<sub>v</sub>.',
+  tip:'Lichá osa S<sub>3</sub>: existuje, protože C<sub>3</sub> i σ<sub>h</sub> jsou operace symetrie samy o sobě.'},
+ {id:'d6h',sym:'D<sub>6h</sub>',fam:'dnh',mol:'Benzen C<sub>6</sub>H<sub>6</sub>',h:24,ops:'E, 2C<sub>6</sub>, 2C<sub>3</sub>, C<sub>2</sub>, 3C<sub>2</sub>′, 3C<sub>2</sub>″, i, 2S<sub>3</sub>, 2S<sub>6</sub>, σ<sub>h</sub>, 3σ<sub>d</sub>, 3σ<sub>v</sub>',chiral:false,
+  atoms:[...ring(6,1.39,'C'),...ring(6,2.47,'H')],
+  els:[C(6,[0,0,1]),C(2,ax(0),'′'),C(2,ax(60),'′'),C(2,ax(120),'′'),C(2,ax(30),'″'),C(2,ax(90),'″'),C(2,ax(150),'″'),P([0,0,1],'h'),P(pn(0),'v'),P(pn(60),'v'),P(pn(120),'v'),P(pn(30),'d'),P(pn(90),'d'),P(pn(150),'d'),I,S(6,[0,0,1]),S(3,[0,0,1])],
+  desc:'Šestiúhelník: C<sub>6</sub>, šest kolmých os C<sub>2</sub> (C<sub>2</sub>′ přes atomy, C<sub>2</sub>″ přes středy vazeb), σ<sub>h</sub>, 3σ<sub>v</sub>, 3σ<sub>d</sub> a střed i.',
+  tip:'Ve stejném směru jako C<sub>6</sub> leží i C<sub>3</sub> a C<sub>2</sub> (jsou to C<sub>6</sub><sup>2</sup> a C<sub>6</sub><sup>3</sup>) a také S<sub>6</sub> a S<sub>3</sub>.'},
+ {id:'dinfh',sym:'D<sub>∞h</sub>',fam:'dnh',mol:'Oxid uhličitý CO<sub>2</sub>',h:'∞',ops:'E, 2C<sub>∞</sub><sup>φ</sup>, ∞σ<sub>v</sub>, i, 2S<sub>∞</sub><sup>φ</sup>, ∞C<sub>2</sub>',chiral:false,
+  atoms:[['C',[0,0,0]],['O',[0,0,1.16]],['O',[0,0,-1.16]]],
+  els:[C(Infinity,[0,0,1]),C(2,[1,0,0]),P([0,0,1],'h'),P([0,1,0],'v'),I],
+  desc:'Lineární molekula se středem symetrie: C<sub>∞</sub> podél osy, nekonečně mnoho kolmých os C<sub>2</sub> a rovin σ<sub>v</sub>, σ<sub>h</sub> a i.',
+  tip:'Zobrazena je jedna z nekonečně mnoha os C<sub>2</sub> a rovin σ<sub>v</sub>. Patří sem také H<sub>2</sub>, N<sub>2</sub>, O<sub>2</sub> a acetylen.'},
+ {id:'d2d',sym:'D<sub>2d</sub>',fam:'dnd',mol:'Allen H<sub>2</sub>C=C=CH<sub>2</sub>',h:8,ops:'E, 2S<sub>4</sub>, C<sub>2</sub>, 2C<sub>2</sub>′, 2σ<sub>d</sub>',chiral:false,
+  atoms:[['C',[0,0,0]],['C',[0,0,1.31]],['C',[0,0,-1.31]],['H',[0.93,0,1.87]],['H',[-0.93,0,1.87]],['H',[0,0.93,-1.87]],['H',[0,-0.93,-1.87]]],
+  els:[C(2,[0,0,1]),C(2,norm([1,1,0]),'′'),C(2,norm([1,-1,0]),'′'),P([0,1,0],'d'),P([1,0,0],'d'),S(4,[0,0,1])],
+  desc:'Dvojice CH<sub>2</sub> na koncích jsou pootočené o 90°. Podél C=C=C leží C<sub>2</sub> a S<sub>4</sub>, kolmo na ni dvě osy C<sub>2</sub>′ a mezi nimi dvě diagonální roviny σ<sub>d</sub>.',
+  tip:'Zkus S<sub>4</sub> po krocích v sekci rozkladu: samotné otočení o 90° nefunguje, až se zrcadlením ano.'},
+ {id:'d3d',sym:'D<sub>3d</sub>',fam:'dnd',mol:'Ethan, střídavá konformace',h:12,ops:'E, 2C<sub>3</sub>, 3C<sub>2</sub>, i, 2S<sub>6</sub>, 3σ<sub>d</sub>',chiral:false,
+  atoms:ethane(60),els:[C(3,[0,0,1]),C(2,ax(30)),C(2,ax(150)),C(2,ax(270)),P(pn(0),'d'),P(pn(60),'d'),P(pn(120),'d'),I,S(6,[0,0,1])],
+  desc:'Hlavní osa C<sub>3</sub> podél vazby C–C, tři kolmé osy C<sub>2</sub> a tři roviny σ<sub>d</sub>, které leží „mezi“ nimi. Z toho plyne S<sub>6</sub> a střed i.',
+  tip:'Stejná grupa jako cyklohexan v židličkové konformaci. Porovnej s D<sub>3</sub> (pootočený ethan): stačí pootočit a zmizí všechny roviny.'},
+ {id:'s4',sym:'S<sub>4</sub>',fam:'s2n',mol:'1,3,5,7-tetrafluorcyklooktatetraen (zjednodušený model)',h:4,ops:'E, S<sub>4</sub>, C<sub>2</sub>, S<sub>4</sub><sup>3</sup>',chiral:false,
+  atoms:tfcot(),els:[C(2,[0,0,1]),S(4,[0,0,1])],
+  desc:'Kruh ve tvaru „vaničky“: čtyři uhlíky jsou nahoře, čtyři dole, a fluory jsou na každém druhém uhlíku. Nemá žádnou rovinu ani střed symetrie, jen osu S<sub>4</sub> (a C<sub>2</sub> = S<sub>4</sub><sup>2</sup>).',
+  tip:'Učebnicový důkaz, že kritérium „nemá σ ani i = chirální“ neplatí. Molekula je achirální jen kvůli S<sub>4</sub>. Vyzkoušej rozklad na kroky.'},
+ {id:'td',sym:'T<sub>d</sub>',fam:'cubic',mol:'Methan CH<sub>4</sub>',h:24,ops:'E, 8C<sub>3</sub>, 3C<sub>2</sub>, 6S<sub>4</sub>, 6σ<sub>d</sub>',chiral:false,
+  atoms:[['C',[0,0,0]],...tet.map(d=>['H',mul(d,1.09)])],
+  els:[...tet.map(d=>C(3,d)),C(2,[1,0,0]),C(2,[0,1,0]),C(2,[0,0,1]),...[[1,-1,0],[1,1,0],[1,0,-1],[1,0,1],[0,1,-1],[0,1,1]].map(n=>P(norm(n),'d')),S(4,[1,0,0]),S(4,[0,1,0]),S(4,[0,0,1])],
+  desc:'Pravidelný čtyřstěn: čtyři osy C<sub>3</sub> (každá přes jeden vodík), tři osy C<sub>2</sub>, ve stejném směru tři osy S<sub>4</sub> a šest rovin σ<sub>d</sub>.',
+  tip:'Klikni na S<sub>4</sub> a pak v rozkladu zkus samotné otočení o 90°. Uvidíš, že bez zrcadlení molekula se svým „duchem“ nesplyne.'},
+ {id:'oh',sym:'O<sub>h</sub>',fam:'cubic',mol:'Fluorid sírový SF<sub>6</sub>',h:48,ops:'E, 8C<sub>3</sub>, 6C<sub>2</sub>, 6C<sub>4</sub>, 3C<sub>2</sub>(=C<sub>4</sub><sup>2</sup>), i, 6S<sub>4</sub>, 8S<sub>6</sub>, 3σ<sub>h</sub>, 6σ<sub>d</sub>',chiral:false,
+  atoms:[['S',[0,0,0]],...[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].map(d=>['F',mul(d,1.56)])],
+  els:[C(4,[1,0,0]),C(4,[0,1,0]),C(4,[0,0,1]),...[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]].map(d=>C(3,norm(d))),...[[1,1,0],[1,-1,0],[1,0,1],[1,0,-1],[0,1,1],[0,1,-1]].map(d=>C(2,norm(d),'′')),
+    P([1,0,0],'h'),P([0,1,0],'h'),P([0,0,1],'h'),...[[1,1,0],[1,-1,0],[1,0,1],[1,0,-1],[0,1,1],[0,1,-1]].map(d=>P(norm(d),'d')),I,
+    S(4,[1,0,0]),S(4,[0,1,0]),S(4,[0,0,1]),...[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]].map(d=>S(6,norm(d)))],
+  desc:'Pravidelný osmistěn: tři osy C<sub>4</sub>, čtyři osy C<sub>3</sub>, šest os C<sub>2</sub>, devět rovin a střed symetrie. Má 48 operací, víc než kterákoli jiná běžná grupa kromě I<sub>h</sub>.',
+  tip:'Prvků je hodně. Vypni v nástrojích některé typy (třeba roviny) a pak je přes čipy v panelu zvýrazňuj po jednom.'},
+ {id:'ih',sym:'I<sub>h</sub>',fam:'cubic',mol:'Fulleren C<sub>60</sub>',h:120,ops:'E, 12C<sub>5</sub>, 12C<sub>5</sub><sup>2</sup>, 20C<sub>3</sub>, 15C<sub>2</sub>, i, 12S<sub>10</sub>, 12S<sub>10</sub><sup>3</sup>, 20S<sub>6</sub>, 15σ',chiral:false,rad:0.6,
+  atoms:c60(),els:[C(5,norm([0,1,PHI])),C(3,norm([1,1,1])),C(2,[1,0,0]),P([1,0,0],''),I,S(10,norm([0,1,PHI])),S(6,norm([1,1,1]))],
+  desc:'Ikosaedrická symetrie, nejvyšší možná bodová symetrie. Celkem 6 os C<sub>5</sub> (přes pětiúhelníky), 10 os C<sub>3</sub> (přes šestiúhelníky), 15 os C<sub>2</sub>, 15 rovin a střed. Zobrazen je jen jeden prvek od každého typu.',
+  tip:'V biologii jde o symetrii kapsid mnoha virů. Ty ale tvoří chirální proteiny, takže mají jen rotační grupu I (bez rovin a středu).'}
+];
+const FAMS=[
+ ['low','Nízká symetrie'],['cn','C<sub>n</sub>'],['cnv','C<sub>nv</sub>'],['cnh','C<sub>nh</sub>'],['dn','D<sub>n</sub>, diedrické'],['dnh','D<sub>nh</sub>'],['dnd','D<sub>nd</sub>'],['s2n','S<sub>2n</sub>'],['cubic','Kubické a I<sub>h</sub>']
+];
+if(typeof module!=='undefined')module.exports={GROUPS,opPos,norm};
+
+</script>
+<script>
+{
+const $=s=>document.querySelector(s);
+const COL={H:0xf2f2f2,C:0x4a4d55,N:0x3b6cff,O:0xff3b30,F:0x9be05a,Cl:0x2fd04f,Br:0xa83232,S:0xffd123,B:0xffb5b5};
+const RAD={H:.28,C:.40,N:.40,O:.40,F:.36,Cl:.48,Br:.52,S:.52,B:.40};
+const COV={H:.31,B:.84,C:.76,N:.71,O:.66,F:.57,S:1.05,Cl:1.02,Br:1.2};
+const ECOL={C:0xff8a1f,S:0x2fd38a,s:0x5ab0ff,i:0xe65bd6};
+const sub=v=>v===Infinity?'∞':v;
+const labHTML=el=>el.k==='C'?`C<sub>${sub(el.n)}</sub>${el.p||''}`:el.k==='S'?`S<sub>${el.n}</sub>`:el.k==='s'?`σ${el.t?'<sub>'+el.t+'</sub>':''}`:el.k==='i'?'i':'E';
+const deg=el=>el.n===Infinity?60:Math.round(360/el.n*10)/10;
+const describe=el=>({E:'identita, nic se nehne.',C:el.n===Infinity?'otočení o libovolný úhel (tady 60°) kolem osy molekuly.':`otočení o ${deg(el)}° kolem osy.`,s:'zrcadlení v rovině: každý atom přejde na druhou stranu roviny do stejné vzdálenosti.',i:'inverze: každý atom projde středem na opačnou stranu, (x,y,z) → (−x,−y,−z).',S:`otočení o ${deg(el)}° a hned potom zrcadlení v rovině kolmé na osu.`})[el.k];
+
+const stage=$('#stage'),canvas=$('#cv'),labelsEl=$('#labels');
+let renderer;
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});}catch(e){stage.insertAdjacentHTML('beforeend','<p style="color:#fff;padding:24px">Prohlížeč nepodporuje WebGL, takže 3D scéna se nezobrazí.</p>');}
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(35,1,0.1,400);
+scene.add(new THREE.HemisphereLight(0xffffff,0x3a4050,0.8));
+const dl=new THREE.DirectionalLight(0xffffff,0.8);dl.position.set(4,6,9);scene.add(dl);
+const world=new THREE.Group();scene.add(world);
+const sphereGeo=new THREE.SphereGeometry(1,32,20),cylGeo=new THREE.CylinderGeometry(1,1,1,14);
+const mats={},gmat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.13,depthWrite:false});
+const amat=e=>mats[e]||(mats[e]=new THREE.MeshStandardMaterial({color:COL[e]||0xcccccc,roughness:.42,metalness:.05}));
+const V3=a=>new THREE.Vector3(a[0],a[1],a[2]);
+
+let G,ref=[],cur=[],types=[],atomM=[],ghostM=[],bonds=[],bondM=[],els=[],R=1,rs=1,zoom=1,W=1,H=1;
+let labels=[],numLabels=[],anim=null,viewAnim=null,hl=-1,lastEl=null,lastIdx=-1,count=0,decompEl=null,temp=null;
+
+function clearWorld(){while(world.children.length)world.remove(world.children[0]);labelsEl.innerHTML='';labels=[];numLabels=[];}
+function addLabel(cls,html,getPos,elIdx){const d=document.createElement('div');d.className='lb '+cls;d.innerHTML=html;labelsEl.appendChild(d);const L={d,getPos,elIdx};labels.push(L);return L;}
+
+function load(id){
+  G=GROUPS.find(g=>g.id===id)||GROUPS.find(g=>g.id==='td');
+  anim=null;viewAnim=null;hl=-1;lastEl=null;count=0;decompEl=null;temp=null;
+  clearWorld();
+  const n=G.atoms.length,c=[0,1,2].map(i=>G.atoms.reduce((s,a)=>s+a[1][i],0)/n);
+  ref=G.atoms.map(a=>a[1].map((v,i)=>v-c[i]));cur=ref.map(p=>p.slice());types=G.atoms.map(a=>a[0]);
+  rs=G.rad||1;
+  R=Math.max(...ref.map((p,i)=>Math.hypot(...p)+RAD[types[i]]*rs),1.2);
+  bonds=[];for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const d=Math.hypot(ref[i][0]-ref[j][0],ref[i][1]-ref[j][1],ref[i][2]-ref[j][2]);if(d<(COV[types[i]]+COV[types[j]])*1.2)bonds.push([i,j]);}
+  atomM=types.map(e=>{const m=new THREE.Mesh(sphereGeo,amat(e));m.scale.setScalar(RAD[e]*rs);world.add(m);return m;});
+  ghostM=types.map((e,i)=>{const m=new THREE.Mesh(sphereGeo,gmat);m.scale.setScalar(RAD[e]*rs*1.12);m.position.copy(V3(ref[i]));m.renderOrder=2;world.add(m);return m;});
+  bondM=bonds.map(([i,j])=>{const a=new THREE.Mesh(cylGeo,amat(types[i])),b=new THREE.Mesh(cylGeo,amat(types[j]));world.add(a);world.add(b);return [a,b];});
+  numLabels=types.map((e,i)=>addLabel('num',String(i+1),()=>V3(cur[i]),-1));
+  els=G.els.map((el,idx)=>buildEl(el,idx));
+  applyToggles();updateAtoms(1);
+  setView('def',true);
+  renderPanel();renderNav();
+  $('#caption').textContent='';
+  $('#status').innerHTML='Najeď na čip a prvek se ve scéně zvýrazní. Kliknutím operaci provedeš, opakovaným klikáním ji skládáš.';
+  $('#decomp').hidden=true;
+}
+
+function axisMesh(a,len,rad,color,dashed){
+  const g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.95});
+  const dir=V3(a).normalize(),q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+  if(!dashed){const c=new THREE.Mesh(cylGeo,m);c.scale.set(rad,2*len,rad);c.quaternion.copy(q);g.add(c);}
+  else{const step=.32,dash=.18;for(let s=-len;s<len;s+=step){const c=new THREE.Mesh(cylGeo,m);c.scale.set(rad,dash,rad);c.quaternion.copy(q);c.position.copy(dir.clone().multiplyScalar(s+dash/2));g.add(c);}}
+  return {g,mats:[m]};
+}
+function planeMesh(n,r,color,op=.15){
+  const g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,side:THREE.DoubleSide,depthWrite:false});
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(r,72),m);g.add(disc);
+  const pts=[];for(let k=0;k<=72;k++){const t=k/72*Math.PI*2;pts.push(new THREE.Vector3(r*Math.cos(t),r*Math.sin(t),0));}
+  const lm=new THREE.LineBasicMaterial({color,transparent:true,opacity:.7});g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lm));
+  g.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),V3(n).normalize());g.renderOrder=3;
+  return {g,mats:[m,lm],base:[op,.7]};
+}
+function buildEl(el,idx){
+  let o;
+  if(el.k==='C'){o=axisMesh(el.a,1.4*R,.035*Math.max(1,R/2.2),ECOL.C,false);addLabel('C',labHTML(el),()=>V3(el.a).normalize().multiplyScalar(1.5*R),idx);}
+  else if(el.k==='S'){o=axisMesh(el.a,1.65*R,.055*Math.max(1,R/2.2),ECOL.S,true);addLabel('S',labHTML(el),()=>V3(el.a).normalize().multiplyScalar(-1.75*R),idx);}
+  else if(el.k==='s'){o=planeMesh(el.n,1.3*R,ECOL.s);const nn=V3(el.n).normalize(),u=new THREE.Vector3(.35,1,.2);u.sub(nn.clone().multiplyScalar(u.dot(nn))).normalize().multiplyScalar(1.3*R);addLabel('s',labHTML(el),()=>u,idx);}
+  else{const m=new THREE.MeshBasicMaterial({color:ECOL.i,transparent:true,opacity:1});const s=new THREE.Mesh(sphereGeo,m);s.scale.setScalar(.11*Math.max(1,R/2.5));const g=new THREE.Group();g.add(s);o={g,mats:[m]};addLabel('i','i',()=>new THREE.Vector3(.3,.3,.3),idx);}
+  if(!o.base)o.base=o.mats.map(m=>m.opacity);
+  world.add(o.g);return {el,...o};
+}
+function setHL(i){hl=i;els.forEach((o,k)=>{const f=i<0?1:(k===i?1:.18);o.mats.forEach((m,j)=>m.opacity=Math.min(1,o.base[j]*(k===i&&o.el.k==='s'?2.4:f)));});
+  labels.forEach(L=>{if(L.elIdx>=0)L.d.style.opacity=(i<0||L.elIdx===i)?1:.25;});
+  document.querySelectorAll('.chip[data-i]').forEach(c=>c.classList.toggle('on',+c.dataset.i===i));}
+
+const up=new THREE.Vector3(0,1,0);
+function updateAtoms(pulse){
+  cur.forEach((p,i)=>{atomM[i].position.set(p[0],p[1],p[2]);atomM[i].scale.setScalar(RAD[types[i]]*rs*pulse);});
+  const br=.11*rs;
+  bonds.forEach(([i,j],k)=>{const a=V3(cur[i]),b=V3(cur[j]),mid=a.clone().add(b).multiplyScalar(.5),d=b.clone().sub(a),L=d.length();const q=new THREE.Quaternion().setFromUnitVectors(up,d.normalize());
+    const [ma,mb]=bondM[k];ma.quaternion.copy(q);mb.quaternion.copy(q);ma.scale.set(br,L/2,br);mb.scale.set(br,L/2,br);
+    ma.position.copy(a.clone().lerp(mid,.5));mb.position.copy(mid.clone().lerp(b,.5));});
+}
+function matches(){return cur.every((p,i)=>ref.some((r,j)=>types[j]===types[i]&&Math.hypot(p[0]-r[0],p[1]-r[1],p[2]-r[2])<.05));}
+
+const ease=t=>t<.5?2*t*t:1-2*(1-t)*(1-t);
+function runOp(el,opts={}){
+  if(anim||!G)return;
+  const from=cur.map(p=>p.slice());
+  const dur=el.k==='E'?700:el.k==='S'?2400:el.k==='reset'?700:1500;
+  if(temp){world.remove(temp);temp=null;}
+  if(el.k==='S'){temp=planeMesh(el.a,1.3*R,ECOL.S,.0).g;world.add(temp);}
+  if(opts.partial==='ref'){temp=planeMesh(el.n,1.3*R,ECOL.S,.2).g;world.add(temp);}
+  anim={el,from,t0:performance.now(),dur,opts};
+  if(el.k!=='reset'){
+    if(opts.partial){$('#caption').innerHTML=opts.partial==='rot'?`Jen otočení o ${deg(el)}°`:'Jen zrcadlení v rovině kolmé na osu';}
+    else{
+      if(lastEl===el)count++;else{count=1;lastEl=el;}
+      $('#caption').innerHTML=`<b>${labHTML(el)}${count>1?'<sup>'+count+'</sup>':''}</b>: ${describe(el)}`;
+      if(el.k==='S'){decompEl=el;$('#decomp').hidden=false;$('#dRot').innerHTML=`Jen otočení o ${deg(el)}°`;}
+    }
+  } else $('#caption').textContent='Návrat do výchozí polohy';
+}
+function powerNote(el){
+  if(!el||count<2)return '';
+  if(el.k==='C'&&el.n!==Infinity&&count%el.n===0)return ` Provedeno ${count}×, a to je totéž co E: atomy jsou zpátky na svých místech.`;
+  if((el.k==='s'||el.k==='i')&&count%2===0)return ` Dvakrát provedené ${labHTML(el)} = E.`;
+  if(el.k==='S'){if(el.n%2===0&&count%el.n===0)return ` S<sub>${el.n}</sub><sup>${count}</sup> = E.`;if(el.n%2===1){if(count%(2*el.n)===0)return ` S<sub>${el.n}</sub><sup>${count}</sup> = E (u liché osy až po 2n krocích).`;if(count%el.n===0)return ` S<sub>${el.n}</sub><sup>${el.n}</sup> = σ<sub>h</sub>, ne E.`;}
+    if(el.n%2===0&&count===2)return ` S<sub>${el.n}</sub><sup>2</sup> = C<sub>${el.n/2}</sub>.`;}
+  return '';
+}
+function finish(){
+  const {el,opts}=anim;anim=null;
+  if(temp){world.remove(temp);temp=null;}
+  if(el.k==='reset'){cur=ref.map(p=>p.slice());updateAtoms(1);$('#caption').textContent='';lastEl=null;count=0;$('#status').innerHTML='Atomy jsou zpátky ve výchozím očíslování.';return;}
+  const ok=matches();
+  const msg=ok?`<span class="ok">✓ Splývá s duchem.</span> ${opts.partial?'Tenhle krok je tu sám o sobě operací symetrie.':'Operace patří do grupy. Atomy se mohly prohodit, zapni „Čísla atomů“.'}`
+             :`<span class="no">✗ Nesplývá s duchem.</span> ${opts.partial?'Samotný krok tedy operací symetrie této molekuly není. Dokonči ho druhým krokem, nebo vrať atomy.':'Tohle není operace symetrie.'}`;
+  $('#status').innerHTML=msg+(opts.partial?'':powerNote(el));
+  if(opts.partial){lastEl=null;count=0;}
+}
+
+function mainAxis(){
+  const Cs=G.els.filter(e=>e.k==='C').sort((a,b)=>b.n-a.n);if(Cs.length)return Cs[0].a;
+  const Ss=G.els.filter(e=>e.k==='S');if(Ss.length)return Ss[0].a;
+  const Ps=G.els.filter(e=>e.k==='s');if(Ps.length)return Ps[0].n;
+  return [0,0,1];
+}
+function setView(v,instant){
+  const a=V3(mainAxis()).normalize();let q;
+  if(v==='top')q=new THREE.Quaternion().setFromUnitVectors(a,new THREE.Vector3(0,0,1)).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),.12));
+  else{q=new THREE.Quaternion().setFromUnitVectors(a,new THREE.Vector3(0,1,0));if(v==='def'){q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-.55));q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),.38));}else q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),.2));}
+  if(instant||matchMedia('(prefers-reduced-motion: reduce)').matches){world.quaternion.copy(q);viewAnim=null;}
+  else viewAnim={from:world.quaternion.clone(),to:q,t0:performance.now()};
+}
+
+function renderPanel(){
+  $('#gsym').innerHTML=G.sym;$('#gmol').innerHTML=G.mol;
+  $('#gbadges').innerHTML=`<span class="badge">řád h = ${G.h}</span>`+(G.chiral?'<span class="badge ch">chirální</span>':'<span class="badge">achirální</span>');
+  $('#gdesc').innerHTML=G.desc;$('#gops').innerHTML=G.ops;$('#gtip').innerHTML=G.tip;
+  const order={C:0,S:1,s:2,i:3},idx=G.els.map((e,i)=>i).sort((a,b)=>order[G.els[a].k]-order[G.els[b].k]);
+  const cnt={},seen={};G.els.forEach(e=>{const l=labHTML(e);cnt[l]=(cnt[l]||0)+1;});
+  $('#chips').innerHTML='<button class="chip" data-e="1">E</button>'+idx.map(i=>{const e=G.els[i],l=labHTML(e);seen[l]=(seen[l]||0)+1;return `<button class="chip ${e.k}" data-i="${i}">${l}${cnt[l]>1?'<small>'+seen[l]+'</small>':''}</button>`;}).join('');
+}
+function renderNav(){
+  $('#groups').innerHTML=FAMS.map(([f,name])=>{const gs=GROUPS.filter(g=>g.fam===f);return `<div class="fam"><h3>${name}</h3><div>${gs.map(g=>`<button class="gbtn" data-g="${g.id}" aria-current="${g===G}" title="${g.mol.replace(/<[^>]+>/g,'')}">${g.sym}</button>`).join('')}</div></div>`;}).join('');
+}
+
+$('#groups').addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(b){if(location.hash==='#'+b.dataset.g)load(b.dataset.g);else location.hash=b.dataset.g;}});
+window.addEventListener('hashchange',()=>load(location.hash.slice(1)));
+const chips=$('#chips');
+chips.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;if(b.dataset.e){runOp({k:'E'});return;}const i=+b.dataset.i;lastIdx=i;setHL(i);runOp(G.els[i]);});
+chips.addEventListener('mouseover',e=>{const b=e.target.closest('.chip[data-i]');if(b&&!anim)setHL(+b.dataset.i);});
+chips.addEventListener('mouseleave',()=>{if(!anim)setHL(-1);});
+$('#dRot').addEventListener('click',()=>decompEl&&runOp({k:'C',n:decompEl.n,a:decompEl.a},{partial:'rot'}));
+$('#dRef').addEventListener('click',()=>decompEl&&runOp({k:'s',n:decompEl.a},{partial:'ref'}));
+const doReset=()=>runOp({k:'reset'});$('#reset').addEventListener('click',doReset);$('#dReset').addEventListener('click',doReset);
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+$('#zin').addEventListener('click',()=>zoom=Math.max(.35,zoom/1.2));
+$('#zout').addEventListener('click',()=>zoom=Math.min(2.5,zoom*1.2));
+function applyToggles(){
+  const on={C:$('#tC').checked,S:$('#tS').checked,s:$('#ts').checked,i:$('#ti').checked};
+  els.forEach((o,k)=>{o.g.visible=on[o.el.k];});
+  labels.forEach(L=>{if(L.elIdx>=0)L.d.hidden=!on[G.els[L.elIdx].k];});
+  ghostM.forEach(m=>m.visible=$('#tg').checked);
+  numLabels.forEach(L=>L.d.hidden=!$('#tn').checked);
+}
+['#tC','#tS','#ts','#ti','#tg','#tn'].forEach(s=>$(s).addEventListener('change',applyToggles));
+
+const ptrs=new Map();let pinch0=0;
+canvas.addEventListener('pointerdown',e=>{ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});canvas.setPointerCapture(e.pointerId);viewAnim=null;if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch0=Math.hypot(a.x-b.x,a.y-b.y);}});
+canvas.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;
+  if(ptrs.size===1){const dx=e.clientX-p.x,dy=e.clientY-p.y,l=Math.hypot(dx,dy);if(l>0){world.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(dy,dx,0).normalize(),l*.008));}}
+  p.x=e.clientX;p.y=e.clientY;
+  if(ptrs.size===2){const [a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch0>0){zoom=Math.min(2.5,Math.max(.35,zoom*pinch0/d));}pinch0=d;}});
+const endP=e=>{ptrs.delete(e.pointerId);pinch0=0;};
+canvas.addEventListener('pointerup',endP);canvas.addEventListener('pointercancel',endP);
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.min(2.5,Math.max(.35,zoom*Math.exp(e.deltaY*.001)));},{passive:false});
+
+const ro=new ResizeObserver(()=>{W=stage.clientWidth;H=stage.clientHeight;if(renderer){renderer.setPixelRatio(Math.min(2,devicePixelRatio));renderer.setSize(W,H,false);}camera.aspect=W/H;camera.updateProjectionMatrix();});
+ro.observe(stage);
+
+const tv=new THREE.Vector3();
+function frame(now){
+  requestAnimationFrame(frame);
+  if(!G||!renderer)return;
+  let pulse=1;
+  if(anim){
+    const t=Math.min(1,(now-anim.t0)/anim.dur),el=anim.el;
+    if(el.k==='E')pulse=1+.14*Math.sin(Math.PI*t);
+    else if(el.k==='reset'){const te=ease(t);cur=anim.from.map((p,i)=>p.map((v,k)=>v+(ref[i][k]-v)*te));}
+    else{let te=ease(t);if(el.k==='S'){te=t<.5?ease(t*2)/2:.5+ease((t-.5)*2)/2;if(temp){const op=t<.45?0:.22;temp.children[0].material.opacity=op;temp.children[1].material.opacity=op?.7:0;}}
+      cur=anim.from.map(p=>opPos(el,p,te));}
+    updateAtoms(pulse);
+    if(t>=1){if(el.k!=='E'&&el.k!=='reset')cur=anim.from.map(p=>opPos(el,p,1));updateAtoms(1);finish();}
+  }
+  if(viewAnim){const t=Math.min(1,(now-viewAnim.t0)/700);world.quaternion.copy(viewAnim.from).slerp(viewAnim.to,ease(t));if(t>=1)viewAnim=null;}
+  const fit=1.55*R/(Math.tan(17.5*Math.PI/180)*Math.min(1,camera.aspect));
+  camera.position.set(0,0,fit*zoom);camera.lookAt(0,0,0);
+  world.updateMatrixWorld();
+  renderer.render(scene,camera);
+  for(const L of labels){if(L.d.hidden)continue;tv.copy(L.getPos()).applyMatrix4(world.matrixWorld);const back=tv.z< -.25*R;tv.project(camera);
+    if(tv.z>1){L.d.style.visibility='hidden';continue;}L.d.style.visibility='';
+    L.d.style.transform=`translate(${((tv.x+1)/2*W).toFixed(1)}px,${((1-tv.y)/2*H).toFixed(1)}px) translate(-50%,-50%)`;
+    if(L.elIdx<0)L.d.style.opacity=back?.45:1;}
+}
+load(location.hash.slice(1)||'td');
+requestAnimationFrame(frame);
+}
+
+</script>
+</body></html>
